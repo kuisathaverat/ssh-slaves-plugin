@@ -76,7 +76,7 @@
     <dependency>
       <groupId>org.jenkins-ci</groupId>
       <artifactId>trilead-ssh2</artifactId>
-      <version>build-217-jenkins-11</version>
+      <version>build-217-jenkins-16</version>
       <scope>provided</scope>
       <!-- we only need the newer version for testing, we use the bundled version during execution -->
     </dependency>
