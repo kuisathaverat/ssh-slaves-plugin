@@ -36,7 +36,7 @@ import java.io.IOException;
 /**
  * A method for verifying the host key provided by the remote host during the
  * initiation of each connection.
- * 
+ *
  * @author Michael Clarke
  * @since 1.13
  */
@@ -65,13 +65,14 @@ public abstract class SshHostKeyVerificationStrategy implements Describable<SshH
      */
     @CheckForNull
     public String[] getPreferredKeyAlgorithms(SlaveComputer computer) throws IOException {
-        return TrileadVersionSupportManager.getTrileadSupport().getSupportedAlgorithms();
+        JenkinsTrilead9VersionSupport trileadSupport = new JenkinsTrilead9VersionSupport();
+        return trileadSupport.getSupportedAlgorithms();
     }
-    
-    public static abstract class SshHostKeyVerificationStrategyDescriptor extends Descriptor<SshHostKeyVerificationStrategy> {
-        
-    }
-    
 
-    
+    public static abstract class SshHostKeyVerificationStrategyDescriptor extends Descriptor<SshHostKeyVerificationStrategy> {
+
+    }
+
+
+
 }

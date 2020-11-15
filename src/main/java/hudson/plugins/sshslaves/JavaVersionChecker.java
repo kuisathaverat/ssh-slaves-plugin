@@ -35,7 +35,7 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.Locale;
 import java.util.logging.Logger;
-import com.trilead.ssh2.Connection;
+import com.trilead.ssh2.ConnectionJenkins;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.kohsuke.accmod.Restricted;
@@ -54,9 +54,9 @@ public class JavaVersionChecker {
     private final SlaveComputer computer;
     private final TaskListener listener;
     private final String jvmOptions;
-    private final Connection connection;
+    private final ConnectionJenkins connection;
 
-    public JavaVersionChecker(SlaveComputer computer, TaskListener listener, String jvmOptions, Connection connection) {
+    public JavaVersionChecker(SlaveComputer computer, TaskListener listener, String jvmOptions, ConnectionJenkins connection) {
         this.computer = computer;
         this.listener = listener;
         this.jvmOptions = jvmOptions;

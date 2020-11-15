@@ -43,11 +43,6 @@ public class TrileadVersionSupportManagerTest {
     }
 
     @Test
-    public void testCurrentInstance() {
-        assertEquals(JenkinsTrilead9VersionSupport.class, TrileadVersionSupportManager.getTrileadSupport().getClass());
-    }
-
-    @Test
     @Issue("JENKINS-44893")
     public void testCurrentInstanceWithIsolatedClassLoader() {
         BlockingClassloader classloader = newBlockingClassloader();

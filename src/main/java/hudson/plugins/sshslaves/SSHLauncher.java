@@ -33,11 +33,12 @@ import com.cloudbees.plugins.credentials.common.StandardUsernameListBoxModel;
 import com.google.common.io.ByteStreams;
 import com.trilead.ssh2.ChannelCondition;
 import com.trilead.ssh2.Connection;
+import com.trilead.ssh2.ConnectionJenkins;
 import com.trilead.ssh2.SCPClient;
-import com.trilead.ssh2.SFTPv3Client;
 import com.trilead.ssh2.SFTPv3FileAttributes;
 import com.trilead.ssh2.ServerHostKeyVerifier;
 import com.trilead.ssh2.Session;
+import com.trilead.ssh2.SessionJenkins;
 import com.trilead.ssh2.jenkins.SFTPClient;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -158,7 +159,7 @@ public class SSHLauncher extends ComputerLauncher {
     /**
      * SSH connection to the agent.
      */
-    private transient volatile Connection connection;
+    private transient volatile ConnectionJenkins connection;
 
     /**
      * Indicates that the {@link #tearDownConnection(SlaveComputer, TaskListener)} is in progress.
@@ -327,7 +328,7 @@ public class SSHLauncher extends ComputerLauncher {
         try {
             // only ever want from the system
             // lookup every time so that we always have the latest
-            StandardUsernameCredentials credentials = credentialsId != null ? 
+            StandardUsernameCredentials credentials = credentialsId != null ?
                     SSHLauncher.lookupSystemCredentials(credentialsId) : null;
             if (credentials != null) {
                 this.credentials = credentials;
@@ -415,7 +416,7 @@ public class SSHLauncher extends ComputerLauncher {
                 listener.getLogger().println(Messages.SSHLauncher_alreadyConnected());
                 return;
             }
-            connection = new Connection(host, port);
+            connection = new ConnectionJenkins(host, port);
             launcherExecutorService = Executors.newSingleThreadExecutor(
                     new NamingThreadFactory(Executors.defaultThreadFactory(), "SSHLauncher.launch for '" + computer.getName() + "' node"));
             Set<Callable<Boolean>> callables = new HashSet<>();
@@ -521,7 +522,7 @@ public class SSHLauncher extends ComputerLauncher {
      * Called to terminate the SSH connection. Used liberally when we back out from an error.
      */
     private void cleanupConnection(TaskListener listener) {
-        // we might be called multiple times from multiple finally/catch block, 
+        // we might be called multiple times from multiple finally/catch block,
         Connection _connection = connection;
         if (_connection != null) {
             Computer.threadPoolForRemoting.submit(_connection::close);
@@ -537,7 +538,7 @@ public class SSHLauncher extends ComputerLauncher {
     private EnvVars getEnvVars(SlaveComputer computer) {
         final EnvVars global = getEnvVars(Jenkins.get());
 
-        final Node node = computer.getNode();    
+        final Node node = computer.getNode();
         final EnvVars local = node != null ? getEnvVars(node) : null;
 
         if (global != null) {
@@ -586,7 +587,7 @@ public class SSHLauncher extends ComputerLauncher {
         } catch (UnsupportedEncodingException ex) { // Should not happen
             throw new IOException("Default encoding is unsupported", ex);
         }
-        
+
         if (s.length()!=0) {
             listener.getLogger().println(Messages.SSHLauncher_SSHHeaderJunkDetected());
             listener.getLogger().println(s);
@@ -617,7 +618,8 @@ public class SSHLauncher extends ComputerLauncher {
         listener.getLogger().println(Messages.SSHLauncher_StartingAgentProcess(getTimestamp(), cmd));
         session.execCommand(cmd);
 
-        session.pipeStderr(new DelegateNoCloseOutputStream(listener.getLogger()));
+        //TODO see if worth to implement SessionJenkins
+        //session.pipeStderr(new DelegateNoCloseOutputStream(listener.getLogger()));
 
         try {
             computer.setChannel(session.getStdout(), session.getStdin(), listener.getLogger(), null);
@@ -636,6 +638,7 @@ public class SSHLauncher extends ComputerLauncher {
     }
 
     private void expandChannelBufferSize(Session session, TaskListener listener) {
+      /* TODO check if it worth to implement
             // see hudson.remoting.Channel.PIPE_WINDOW_SIZE for the discussion of why 1MB is in the right ball park
             // but this particular session is where all the master/agent communication will happen, so
             // it's worth using a bigger buffer to really better utilize bandwidth even when the latency is even larger
@@ -643,6 +646,8 @@ public class SSHLauncher extends ComputerLauncher {
             int sz = 4;
             session.setWindowSize(sz*1024*1024);
             listener.getLogger().println("Expanded the channel window size to "+sz+"MB");
+
+       */
     }
 
     /**
@@ -824,14 +829,14 @@ public class SSHLauncher extends ComputerLauncher {
     protected void openConnection(final TaskListener listener, final SlaveComputer computer) throws IOException, InterruptedException {
         PrintStream logger = listener.getLogger();
         logger.println(Messages.SSHLauncher_OpeningSSHConnection(getTimestamp(), host + ":" + port));
-        connection.setTCPNoDelay(getTcpNoDelay());
+        //connection.setTCPNoDelay(getTcpNoDelay());
 
         int maxNumRetries = getMaxNumRetries();
         for (int i = 0; i <= maxNumRetries; i++) {
             try {
                 int launchTimeoutMillis = (int)getLaunchTimeoutMillis();
                 connection.connect(new ServerHostKeyVerifierImpl(computer, listener),
-                        launchTimeoutMillis, 0 /*read timeout - JENKINS-48618*/,
+                        launchTimeoutMillis,
                         (int) (launchTimeoutMillis + TimeUnit.SECONDS.toMillis(5)));
                 break;
             } catch (Exception ex) {
@@ -937,14 +942,16 @@ public class SSHLauncher extends ComputerLauncher {
     private void tearDownConnectionImpl(@NonNull SlaveComputer slaveComputer, final @NonNull TaskListener listener) {
         try {
             tearingDownConnection = true;
-            boolean connectionLost = reportTransportLoss(connection, listener);
+            // TODO remove
+            //boolean connectionLost = reportTransportLoss(connection, listener);
             if (session!=null) {
                 // give the process 3 seconds to write out its dying message before we cut the loss
                 // and give up on this process. if the agent process had JVM crash, OOME, or any other
                 // critical problem, this will allow us to capture that.
                 // exit code is also an useful info to figure out why the process has died.
                 try {
-                    listener.getLogger().println(getSessionOutcomeMessage(session,connectionLost));
+                    // TODO remove
+                    //listener.getLogger().println(getSessionOutcomeMessage(session,connectionLost));
                     session.getStdout().close();
                     session.close();
                 } catch (Throwable t) {
@@ -963,14 +970,16 @@ public class SSHLauncher extends ComputerLauncher {
     /**
      * If the SSH connection as a whole is lost, report that information.
      */
+    /* TODO check if it worth to implement
     private boolean reportTransportLoss(Connection c, TaskListener listener) {
+
         Throwable cause = c.getReasonClosedCause();
         if (cause != null) {
             cause.printStackTrace(listener.error("Socket connection to SSH server was lost"));
         }
 
         return cause != null;
-    }
+    }*/
 
     /**
      * Find the exit code or exit status, which are differentiated in SSH protocol.
