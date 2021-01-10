@@ -53,7 +53,7 @@ import jenkins.model.Jenkins;
  *      <li>"/usr/java/latest/bin/java"
  *      <li>"/usr/local/bin/java"
  *      <li>"/usr/local/java/bin/java
- *  </ul><p>
+ *  </ul></p>
  *
  */
 @Extension

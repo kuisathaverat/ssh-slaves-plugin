@@ -57,7 +57,7 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
 /**
  * {@link ComputerConnector} for {@link SSHLauncher}.
  * <p>
- * <p>
+ * </p>
  * Significant code duplication between this and {@link SSHLauncher} because of the historical reason.
  * Newer plugins like this should define a separate Describable connection parameter class and have
  * connector and launcher share them.

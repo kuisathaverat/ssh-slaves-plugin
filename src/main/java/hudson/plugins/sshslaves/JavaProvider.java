@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  * Guess where Java is.
  */
 public abstract class JavaProvider implements ExtensionPoint {
-    
+
     private static final VersionNumber JAVA_LEVEL_8 = new VersionNumber("8");
 
     /**
@@ -68,10 +68,9 @@ public abstract class JavaProvider implements ExtensionPoint {
 
     /**
      * Gets minimal required Java version.
-     * 
+     *
      * @return Minimal Java version required on the master and agent side.
-     * @since TODO
-     * 
+     *
      */
     @Nonnull
     public static VersionNumber getMinJavaLevel() {
