@@ -27,7 +27,7 @@ import com.cloudbees.jenkins.plugins.sshcredentials.SSHAuthenticator;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
 import com.cloudbees.plugins.credentials.common.StandardUsernameListBoxModel;
-import com.trilead.ssh2.Connection;
+import io.jenkins.plugins.sshbuildagents.ssh.Connection;
 import hudson.Extension;
 import hudson.model.ItemGroup;
 import hudson.model.TaskListener;

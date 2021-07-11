@@ -35,7 +35,7 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.Locale;
 import java.util.logging.Logger;
-import com.trilead.ssh2.Connection;
+import io.jenkins.plugins.sshbuildagents.ssh.Connection;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.kohsuke.accmod.Restricted;
@@ -44,7 +44,6 @@ import hudson.model.TaskListener;
 import hudson.slaves.SlaveComputer;
 import hudson.util.VersionNumber;
 import static java.util.logging.Level.FINE;
-import static java.util.logging.Level.WARNING;
 
 /**
  * class to check if the version of java installed on the agent is a supported one.

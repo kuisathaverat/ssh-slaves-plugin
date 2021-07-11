@@ -23,7 +23,7 @@
  */
 package hudson.plugins.sshslaves.verifiers;
 
-import com.trilead.ssh2.KnownHosts;
+import io.jenkins.plugins.sshbuildagents.ssh.KnownHosts;
 import hudson.Extension;
 import hudson.model.TaskListener;
 import hudson.plugins.sshslaves.Messages;
