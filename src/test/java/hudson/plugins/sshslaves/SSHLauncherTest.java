@@ -244,6 +244,7 @@ public class SSHLauncherTest {
     Assert.assertEquals(launcher.getWorkDirParam(rootFS), WORK_DIR_PARAM + anotherWorkDir + JAR_CACHE_PARAM + anotherWorkDir + JAR_CACHE_DIR);
   }
 
+  /* TODO check for remove
   @Issue("JENKINS-53245")
   @Test
   public void setJavaHome() throws Exception {
@@ -274,7 +275,7 @@ public class SSHLauncherTest {
     assertTrue(javas.contains(javaHome + DefaultJavaProvider.BIN_JAVA));
     assertTrue(javas.contains(javaHomeTool + DefaultJavaProvider.BIN_JAVA));
     assertTrue(javas.contains(SSHLauncher.getWorkingDirectory(computer) + DefaultJavaProvider.JDK_BIN_JAVA));
-  }
+  }*/
 
   @Test
   public void timeoutAndRetrySettings() {

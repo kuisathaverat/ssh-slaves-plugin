@@ -32,7 +32,7 @@ import com.cloudbees.plugins.credentials.domains.HostnamePortRequirement;
 import com.cloudbees.plugins.credentials.domains.SchemeRequirement;
 import io.jenkins.plugins.sshbuildagents.ssh.ConnectionImpl;
 import io.jenkins.plugins.sshbuildagents.ssh.ServerHostKeyVerifier;
-import io.jenkins.plugins.sshbuildagents.ssh.Session;
+import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.AbortException;
@@ -136,7 +136,7 @@ public class SSHLauncher extends ComputerLauncher {
     /**
      * The session inside {@link #connection} that controls the agent process.
      */
-    private transient Session session;
+    private transient ShellChannel session;
 
     /**
      * Field prefixStartSlaveCmd.
@@ -390,37 +390,14 @@ public class SSHLauncher extends ComputerLauncher {
             callables.add(new Callable<Boolean>() {
                 public Boolean call() throws InterruptedException {
                     Boolean rval = Boolean.FALSE;
+                    final String workingDirectory = getWorkingDirectory(computer);
                     try {
-                        String[] preferredKeyAlgorithms = getSshHostKeyVerificationStrategyDefaulted().getPreferredKeyAlgorithms(computer);
-                        if (preferredKeyAlgorithms != null && preferredKeyAlgorithms.length > 0) { // JENKINS-44832
-                            connection.setServerHostKeyAlgorithms(preferredKeyAlgorithms);
-                        } else {
-                            listener.getLogger().println("Warning: no key algorithms provided; JENKINS-42959 disabled");
-                        }
-
                         listener.getLogger().println(logConfiguration());
-
-                        openConnection(listener, computer);
-
+                        openConnection(listener, computer, workingDirectory);
+                        copyAgentJar(listener, workingDirectory);
                         verifyNoHeaderJunk(listener);
                         reportEnvironment(listener);
-
-                        final String workingDirectory = getWorkingDirectory(computer);
-                        if (workingDirectory == null) {
-                            listener.error("Cannot get the working directory for " + computer);
-                            return Boolean.FALSE;
-                        }
-
-                        String java = null;
-                        if (StringUtils.isNotBlank(javaPath)) {
-                            java = expandExpression(computer, javaPath);
-                        } else {
-                            checkJavaIsInPath(listener);
-                        }
-
-                        copyAgentJar(listener, workingDirectory);
-
-                        startAgent(computer, listener, java, workingDirectory);
+                        startAgent(computer, listener, workingDirectory);
                         // TODO check if this is executed after the agent start or when it dies
                         PluginImpl.register(connection);
                         rval = Boolean.TRUE;
@@ -495,7 +472,7 @@ public class SSHLauncher extends ComputerLauncher {
     int ret = 0;
     try {
       listener.getLogger().println("Checking Java version in the PATH");
-      ret = connection.exec("java -version", listener.getLogger());
+      ret = connection.execCommand("java -version");
     } catch (Exception e){
       ret = -1;
     }
@@ -564,22 +541,23 @@ public class SSHLauncher extends ComputerLauncher {
 
     /**
      * Makes sure that SSH connection won't produce any unwanted text, which will interfere with sftp execution.
+     * TODO review if it is needed or move to the SSH Provider.
      */
     private void verifyNoHeaderJunk(TaskListener listener) throws IOException, InterruptedException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        connection.exec("exit 0",baos);
-        final String s;
-        //TODO: Seems we need to retrieve the encoding from the connection destination
-        try {
-            s = baos.toString(Charset.defaultCharset().name());
-        } catch (UnsupportedEncodingException ex) { // Should not happen
-            throw new IOException("Default encoding is unsupported", ex);
-        }
 
-        if (s.length()!=0) {
+        try {
+          ByteArrayOutputStream baos = new ByteArrayOutputStream();
+          connection.execCommand("exit 0");
+          final String s;
+          //TODO: Seems we need to retrieve the encoding from the connection destination
+          s = baos.toString(Charset.defaultCharset().name());
+          if (s.length()!=0) {
             listener.getLogger().println(Messages.SSHLauncher_SSHHeaderJunkDetected());
             listener.getLogger().println(s);
             throw new AbortException();
+          }
+        } catch (UnsupportedEncodingException ex) { // Should not happen
+            throw new IOException("Default encoding is unsupported", ex);
         }
     }
 
@@ -588,14 +566,18 @@ public class SSHLauncher extends ComputerLauncher {
      *
      * @param computer         The computer.
      * @param listener         The listener.
-     * @param java             The full path name of the java executable to use.
      * @param workingDirectory The working directory from which to start the java process.
      *
      * @throws IOException If something goes wrong.
      */
-    private void startAgent(SlaveComputer computer, final TaskListener listener, String java,
+    private void startAgent(SlaveComputer computer, final TaskListener listener,
                             String workingDirectory) throws IOException {
-        session = connection.openSession();
+        String java = "java";
+        if (StringUtils.isNotBlank(javaPath)) {
+          java = expandExpression(computer, javaPath);
+        } else {
+          checkJavaIsInPath(listener);
+        }
         String cmd = "cd \"" + workingDirectory + "\" && " + java + " " + getJvmOptions() + " -jar " + AGENT_JAR +
                      getWorkDirParam(workingDirectory);
 
@@ -603,15 +585,13 @@ public class SSHLauncher extends ComputerLauncher {
         cmd = getPrefixStartSlaveCmd() + cmd + getSuffixStartSlaveCmd();
 
         listener.getLogger().println(Messages.SSHLauncher_StartingAgentProcess(getTimestamp(), cmd));
-        session.execCommand(cmd);
-
-        session.pipeStderr(new DelegateNoCloseOutputStream(listener.getLogger()));
-
+        ShellChannel shellChannel = connection.shellChannel();
+        shellChannel.execCommand(cmd);
         try {
-            computer.setChannel(session.getStdout(), session.getStdin(), listener.getLogger(), null);
+            computer.setChannel(shellChannel.getInvertedStdout(), shellChannel.getInvertedStdin(), listener.getLogger(), null);
         } catch (InterruptedException e) {
-            session.close();
-            throw new IOException(Messages.SSHLauncher_AbortedDuringConnectionOpen(), e);
+          connection.close();
+          throw new IOException(Messages.SSHLauncher_AbortedDuringConnectionOpen(), e);
         } catch (IOException e) {
           throw new AbortException(e.getMessage());
           /* TODO review
@@ -671,46 +651,39 @@ public class SSHLauncher extends ComputerLauncher {
         return bytes;
     }
 
-    protected void reportEnvironment(TaskListener listener) throws IOException, InterruptedException {
+    protected void reportEnvironment(TaskListener listener) throws IOException {
         listener.getLogger().println(Messages._SSHLauncher_RemoteUserEnvironment(getTimestamp()));
-        connection.exec("set",listener.getLogger());
+        connection.execCommand("set");
     }
 
-    protected void openConnection(final TaskListener listener, final SlaveComputer computer) throws IOException, InterruptedException {
-        PrintStream logger = listener.getLogger();
-        logger.println(Messages.SSHLauncher_OpeningSSHConnection(getTimestamp(), host + ":" + port));
-        connection.setTCPNoDelay(getTcpNoDelay());
-
+    protected void openConnection(final TaskListener listener, final SlaveComputer computer, final String workingDirectory) throws IOException {
+        if (workingDirectory == null) {
+          String msg = "Cannot get the working directory for " + computer;
+          listener.error(msg);
+          throw new AbortException(msg);
+        }
         StandardUsernameCredentials credentials = getCredentials();
         if (credentials == null) {
           throw new AbortException("Cannot find SSH User credentials with id: " + credentialsId);
         }
-        int maxNumRetries = getMaxNumRetries();
-        for (int i = 0; i <= maxNumRetries; i++) {
-            try {
-                connection.connect(new ServerHostKeyVerifierImpl(computer, listener), (int)getLaunchTimeoutMillis(), credentials);
-                break;
-            } catch (Exception ex) {
-                String message = "unknown error";
-                Throwable cause = ex.getCause();
-                if (cause != null) {
-                    message = cause.getMessage();
-                    logger.println(message);
-                } else if(ex.getMessage() != null){
-                    message = ex.getMessage();
-                    logger.println(message);
-                }
-
-                connection.close();
-
-                if (maxNumRetries - i > 0) {
-                    logger.println("SSH Connection failed with IOException: \"" + message
-                            + "\", retrying in " + getRetryWaitTime() + " seconds." +
-                            " There are " + (maxNumRetries - i) + " more retries left.");
-                }
-            }
-            Thread.sleep(TimeUnit.SECONDS.toMillis(getRetryWaitTime()));
+        String[] preferredKeyAlgorithms = getSshHostKeyVerificationStrategyDefaulted().getPreferredKeyAlgorithms(computer);
+        if (preferredKeyAlgorithms != null && preferredKeyAlgorithms.length > 0) { // JENKINS-44832
+          connection.setServerHostKeyAlgorithms(preferredKeyAlgorithms);
+        } else {
+          listener.getLogger().println("Warning: no key algorithms provided; JENKINS-42959 disabled");
         }
+        PrintStream logger = listener.getLogger();
+        logger.println(Messages.SSHLauncher_OpeningSSHConnection(getTimestamp(), host + ":" + port));
+        connection.setTCPNoDelay(getTcpNoDelay());
+        connection.setServerHostKeyVerifier(new ServerHostKeyVerifierImpl(computer, listener));
+        connection.setTimeout((int)getLaunchTimeoutMillis());
+        connection.setCredentials(credentials);
+        connection.setRetries(getMaxNumRetries());
+        connection.setRetryWaitTime(getRetryWaitTime());
+        connection.setWorkingDirectory(workingDirectory);
+        connection.setStdErr(new DelegateNoCloseOutputStream(listener.getLogger()));
+        connection.setStdOut(new DelegateNoCloseOutputStream(listener.getLogger()));
+        connection.connect();
     }
 
     private void checkConfig() throws InterruptedException {
@@ -1091,15 +1064,17 @@ public class SSHLauncher extends ComputerLauncher {
             try {
                 int portValue = Integer.parseInt(port);
                 for (ListBoxModel.Option o : CredentialsProvider
-                        .listCredentials(StandardUsernameCredentials.class, context, ACL.SYSTEM,
-                                Collections.singletonList(
-                                        new HostnamePortRequirement(host, portValue)
-                                ),
-                                SSHAuthenticator.matcher(Connection.class))) {
-                    if (StringUtils.equals(value, o.value)) {
-                        return FormValidation.ok();
-                    }
-                }
+                                              .listCredentials(StandardUsernameCredentials.class, context, ACL.SYSTEM,
+                                              Collections.singletonList(
+                                              new HostnamePortRequirement(host, portValue)
+                                              ), null
+                                              //TODO review
+                                              //SSHAuthenticator.matcher(Connection.class)
+                                              )) {
+                                    if (StringUtils.equals(value, o.value)) {
+                                        return FormValidation.ok();
+                                    }
+                                }
             } catch (NumberFormatException e) {
                 return FormValidation.warning(e, Messages.SSHLauncher_PortNotANumber());
             }
