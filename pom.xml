@@ -27,7 +27,7 @@
   <properties>
     <revision>1.32.1</revision>
     <changelist>-SNAPSHOT</changelist>
-    <jenkins.version>2.282</jenkins.version>
+    <jenkins.version>2.303</jenkins.version>
     <java.level>8</java.level>
     <hpi.compatibleSinceVersion>1.31.0</hpi.compatibleSinceVersion>
   </properties>
@@ -120,17 +120,12 @@
       <dependency>
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-api</artifactId>
+        <version>1.7.31</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
 
   <dependencies>
-    <!--
-    <dependency>
-      <groupId>org.jenkins-ci.plugins</groupId>
-      <artifactId>trilead-api</artifactId>
-    </dependency>
-    -->
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>credentials</artifactId>
@@ -148,8 +143,7 @@
     <dependency>
       <groupId>org.jenkins-ci.modules</groupId>
       <artifactId>sshd</artifactId>
-      <version>3.0.4</version>
-      <scope>test</scope>
+      <version>3.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.test</groupId>
@@ -178,6 +172,29 @@
       <artifactId>testcontainers</artifactId>
       <version>1.15.3</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-scp</artifactId>
+      <version>2.7.0</version>
+    </dependency>
+    <!--
+    <dependency>
+      <groupId>org.kohsuke</groupId>
+      <artifactId>trilead-putty-extension</artifactId>
+      <version>1.2</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.jenkins-ci</groupId>
+          <artifactId>trilead-ssh2</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    -->
+    <!-- TODO remove -->
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>trilead-api</artifactId>
     </dependency>
   </dependencies>
 </project>
