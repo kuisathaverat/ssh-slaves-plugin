@@ -24,17 +24,14 @@
 package hudson.plugins.sshslaves.verifiers;
 
 import java.io.IOException;
-
 import javax.servlet.ServletException;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.jenkins.plugins.sshbuildagents.Messages;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
-
 import hudson.model.Computer;
 import hudson.model.TaskAction;
-import hudson.plugins.sshslaves.Messages;
 import hudson.security.ACL;
 import hudson.security.Permission;
 

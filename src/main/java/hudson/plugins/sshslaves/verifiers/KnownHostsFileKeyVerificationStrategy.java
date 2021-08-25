@@ -23,21 +23,20 @@
  */
 package hudson.plugins.sshslaves.verifiers;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
 import com.trilead.ssh2.KnownHosts;
-import hudson.Extension;
-import hudson.model.TaskListener;
-import hudson.plugins.sshslaves.Messages;
-import hudson.plugins.sshslaves.SSHLauncher;
-import hudson.slaves.ComputerLauncher;
-import hudson.slaves.SlaveComputer;
+import io.jenkins.plugins.sshbuildagents.Messages;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.DataBoundConstructor;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Paths;
+import hudson.Extension;
+import hudson.model.TaskListener;
+import hudson.plugins.sshslaves.SSHLauncher;
+import hudson.slaves.ComputerLauncher;
+import hudson.slaves.SlaveComputer;
 
 /**
  * A verifier that reads host keys from the Jenkins users' SSH known_hosts file.

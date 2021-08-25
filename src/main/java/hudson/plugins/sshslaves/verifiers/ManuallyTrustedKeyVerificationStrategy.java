@@ -23,14 +23,6 @@
  */
 package hudson.plugins.sshslaves.verifiers;
 
-import hudson.Extension;
-import hudson.model.Action;
-import hudson.model.Actionable;
-import hudson.model.Computer;
-import hudson.model.TaskListener;
-import hudson.plugins.sshslaves.Messages;
-import hudson.plugins.sshslaves.SSHLauncher;
-import hudson.slaves.SlaveComputer;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -39,7 +31,15 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Nonnull;
+import io.jenkins.plugins.sshbuildagents.Messages;
 import org.kohsuke.stapler.DataBoundConstructor;
+import hudson.Extension;
+import hudson.model.Action;
+import hudson.model.Actionable;
+import hudson.model.Computer;
+import hudson.model.TaskListener;
+import hudson.plugins.sshslaves.SSHLauncher;
+import hudson.slaves.SlaveComputer;
 
 /**
  * A host key verification strategy that works in a similar way to host key verification on
@@ -55,23 +55,23 @@ import org.kohsuke.stapler.DataBoundConstructor;
 public class ManuallyTrustedKeyVerificationStrategy extends SshHostKeyVerificationStrategy {
 
     private static final Logger LOGGER = Logger.getLogger(ManuallyTrustedKeyVerificationStrategy.class.getName());
-    
+
     private final boolean requireInitialManualTrust;
-    
+
     @DataBoundConstructor
     public ManuallyTrustedKeyVerificationStrategy(boolean requireInitialManualTrust) {
         super();
         this.requireInitialManualTrust = requireInitialManualTrust;
     }
-    
+
     public boolean isRequireInitialManualTrust() {
         return requireInitialManualTrust;
     }
-    
+
     @Override
     public boolean verify(final SlaveComputer computer, HostKey hostKey, TaskListener listener) throws IOException {
         HostKeyHelper hostManager = HostKeyHelper.getInstance();
-        
+
         HostKey existingHostKey = hostManager.getHostKey(computer);
         if (null == existingHostKey) {
             if (isRequireInitialManualTrust()) {
@@ -134,17 +134,17 @@ public class ManuallyTrustedKeyVerificationStrategy extends SshHostKeyVerificati
             }
         }
     }
-    
+
     private boolean hasExistingTrustAction(SlaveComputer computer, HostKey hostKey) {
         for (TrustHostKeyAction action : computer.getActions(TrustHostKeyAction.class)) {
             if (!action.isComplete() && action.getHostKey().equals(hostKey)) {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     @Extension
     public static class ManuallyTrustedKeyVerificationStrategyDescriptor extends SshHostKeyVerificationStrategyDescriptor {
 
@@ -152,7 +152,7 @@ public class ManuallyTrustedKeyVerificationStrategy extends SshHostKeyVerificati
         public String getDisplayName() {
             return Messages.ManualTrustingHostKeyVerifier_DescriptorDisplayName();
         }
-        
+
     }
-    
+
 }
