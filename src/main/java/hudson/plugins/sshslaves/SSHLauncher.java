@@ -488,6 +488,7 @@ public class SSHLauncher extends ComputerLauncher {
                     listener.getLogger().println(Messages.SSHLauncher_launchCanceled());
                 }
                 if (!res) {
+                    // System.out messages are for the Jenkins logs (not agent log)
                     System.out.println(Messages.SSHLauncher_LaunchFailedDuration(getTimestamp(),
                             nodeName, host, duration));
                     listener.getLogger().println(getTimestamp() + " Launch failed - cleaning up connection");
