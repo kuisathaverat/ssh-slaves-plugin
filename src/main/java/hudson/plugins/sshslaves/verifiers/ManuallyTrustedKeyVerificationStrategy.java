@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.annotation.Nonnull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.jenkins.plugins.sshbuildagents.Messages;
 import org.kohsuke.stapler.DataBoundConstructor;
 import hudson.Extension;
@@ -119,7 +119,7 @@ public class ManuallyTrustedKeyVerificationStrategy extends SshHostKeyVerificati
     }
 
     /** TODO replace with {@link Computer#addAction} after core baseline picks up JENKINS-42969 fix */
-    private static void addAction(@Nonnull Computer c, @Nonnull Action a) {
+    private static void addAction(@NonNull Computer c, @NonNull Action a) {
         try {
             c.addAction(a);
         } catch (UnsupportedOperationException x) {
