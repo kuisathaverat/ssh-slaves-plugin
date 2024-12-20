@@ -1,0 +1,33 @@
+# Note: additional setup is required, see https://www.jenkins.io/redirect/continuous-delivery-of-plugins
+
+name: ssh-agent-docker
+on:
+  workflow_dispatch:
+
+jobs:
+  maven-cd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - name: Build and Push Docker images
+        uses: ./.github/actions/docker-images
+        id: build
+        with:
+          images: |
+            ghcr.io/kuisathaverat/ssh-agent-base
+          context: .
+          platforms: linux/amd64,linux/arm64
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          githubUsername: ${{ github.actor }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+      - name: Write Summary
+        run: |
+          DOCKER_IMAGE="$(printenv DOCKER_METADATA_OUTPUT_JSON|jq -r '.tags[0]')"
+          echo "docker pull ${DOCKER_IMAGE}" >> "${GITHUB_STEP_SUMMARY}"
