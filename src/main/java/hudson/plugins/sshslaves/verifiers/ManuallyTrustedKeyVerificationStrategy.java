@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
@@ -122,6 +123,11 @@ public class ManuallyTrustedKeyVerificationStrategy extends SshHostKeyVerificati
         }
 
         return false;
+    }
+
+    @Override
+    public ServerKeyVerifier getServerKeyVerifier() {
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Extension

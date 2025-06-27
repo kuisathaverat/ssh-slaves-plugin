@@ -23,9 +23,11 @@
  */
 package io.jenkins.plugins.sshbuildagents.ssh.mina;
 
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHAuthenticator;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
+import hudson.model.TaskListener;
 import hudson.util.Secret;
 import io.jenkins.plugins.sshbuildagents.ssh.Connection;
 import io.jenkins.plugins.sshbuildagents.ssh.ServerHostKeyVerifier;
@@ -43,8 +45,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.apache.sshd.client.ClientBuilder;
 import org.apache.sshd.client.SshClient;
-import org.apache.sshd.client.future.AuthFuture;
 import org.apache.sshd.client.future.ConnectFuture;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.core.CoreModuleProperties;
@@ -221,7 +223,7 @@ public class ConnectionImpl implements Connection {
     @Override
     public ClientSession connect() throws IOException {
         initClient();
-        if (isSession() == false) {
+        if (!isSession()) {
             for (int i = 0; i <= maxNumRetries; i++) {
                 try {
                     return connectAndAuthenticate();
@@ -264,16 +266,28 @@ public class ConnectionImpl implements Connection {
         ConnectFuture connectionFuture = client.connect(this.credentials.getUsername(), this.host, this.port);
         connectionFuture.verify(this.timeoutMillis);
         session = connectionFuture.getSession();
-        addAuthentication();
-        AuthFuture auth = session.auth();
-        auth.verify(this.timeoutMillis);
+        try {
+            if (!SSHAuthenticator.newInstance(session, credentials).authenticate(TaskListener.NULL)) {
+                session.close(true);
+                throw new IOException("Authentication failed.");
+            }
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        }
+        //        addAuthentication();
+        //        AuthFuture auth = session.auth();
+        //        auth.verify(this.timeoutMillis);
         return session;
     }
 
     /** Initialize the SSH client. It reuses the client if it exists. */
     private void initClient() {
         if (client == null) {
-            client = SshClient.setUpDefaultClient();
+            ClientBuilder clientBuilder = ClientBuilder.builder();
+            if (getHostKeyVerifier() instanceof SSHApacheMinaLauncher.ServerHostKeyVerifierImpl hostKeyVerifier) {
+                clientBuilder.serverKeyVerifier(hostKeyVerifier.getServerKeyVerifier());
+            }
+            client = clientBuilder.build();
             CoreModuleProperties.WINDOW_SIZE.set(client, WINDOW_SIZE);
             CoreModuleProperties.TCP_NODELAY.set(client, tcpNoDelay);
             CoreModuleProperties.HEARTBEAT_REQUEST.set(client, "keepalive@jenkins.io");
@@ -281,7 +295,7 @@ public class ConnectionImpl implements Connection {
             CoreModuleProperties.HEARTBEAT_NO_REPLY_MAX.set(client, HEARTBEAT_MAX_RETRY);
             CoreModuleProperties.IDLE_TIMEOUT.set(client, Duration.ofMinutes(IDLE_SESSION_TIMEOUT));
         }
-        if (client.isStarted() == false) {
+        if (!client.isStarted()) {
             client.start();
         }
     }

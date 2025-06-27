@@ -32,13 +32,22 @@ import hudson.plugins.sshslaves.SSHLauncher;
 import hudson.slaves.SlaveComputer;
 import hudson.util.FormValidation;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.StringTokenizer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jenkins.model.Jenkins;
+import org.apache.sshd.client.keyverifier.RejectAllServerKeyVerifier;
+import org.apache.sshd.client.keyverifier.RequiredServerKeyVerifier;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
+import org.apache.sshd.common.config.keys.AuthorizedKeyEntry;
+import org.apache.sshd.common.config.keys.PublicKeyEntryResolver;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.interceptor.RequirePOST;
@@ -52,12 +61,17 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
  */
 public class ManuallyProvidedKeyVerificationStrategy extends SshHostKeyVerificationStrategy {
 
+    private static final Logger LOGGER = Logger.getLogger(ManuallyProvidedKeyVerificationStrategy.class.getName());
+
     private final HostKey key;
+
+    private final String rawKey;
 
     @DataBoundConstructor
     public ManuallyProvidedKeyVerificationStrategy(String key) {
         super();
         try {
+            this.rawKey = key;
             this.key = parseKey(key);
         } catch (KeyParseException e) {
             throw new IllegalArgumentException("Invalid key: " + e.getMessage(), e);
@@ -109,6 +123,32 @@ public class ManuallyProvidedKeyVerificationStrategy extends SshHostKeyVerificat
         }
 
         return TrileadVersionSupportManager.getTrileadSupport().parseKey(algorithm, keyValue);
+    }
+
+    @Override
+    public ServerKeyVerifier getServerKeyVerifier() {
+        AuthorizedKeyEntry entry = AuthorizedKeyEntry.parseAuthorizedKeyEntry(this.rawKey);
+        if (entry != null) {
+            try {
+                final PublicKey expected = entry.resolvePublicKey(null, PublicKeyEntryResolver.IGNORING);
+                LOGGER.log(Level.FINE, () -> "PublicKey expected " + expected);
+                return new RequiredServerKeyVerifier(expected);
+            } catch (GeneralSecurityException | IOException e) {
+                // it's not really fine, but this could spam logs, and the previous logging was nothing.
+                LOGGER.log(
+                        Level.FINE,
+                        "Error on the configured server key format, all keys are rejected. Please "
+                                + "verify the ssh server key.",
+                        e);
+            }
+        } else {
+            LOGGER.log(
+                    Level.FINE,
+                    "No server key configured, all keys are rejected. This seems to be a missed "
+                            + "configuration, please verify the ssh server key.");
+        }
+        // either key is null or with a bad format, rejecting all.
+        return RejectAllServerKeyVerifier.INSTANCE;
     }
 
     @Extension

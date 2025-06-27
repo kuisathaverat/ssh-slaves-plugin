@@ -98,7 +98,8 @@ public class ConnectionImplTest {
     @Test
     public void testCopyFile() throws IOException, FormException {
         // not sure we really need the tempFolder
-        final File tempFile = Files.createTempFile(tempFolder, "tempFile", "txt").toFile();
+        final File tempFile =
+                Files.createTempFile(tempFolder, "tempFile", "txt").toFile();
         Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);

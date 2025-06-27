@@ -45,7 +45,6 @@ import hudson.model.Node;
 import hudson.model.Slave;
 import hudson.model.TaskListener;
 import hudson.plugins.sshslaves.SSHConnector;
-import hudson.plugins.sshslaves.verifiers.HostKey;
 import hudson.plugins.sshslaves.verifiers.NonVerifyingKeyVerificationStrategy;
 import hudson.plugins.sshslaves.verifiers.SshHostKeyVerificationStrategy;
 import hudson.security.ACL;
@@ -74,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.util.io.output.NoCloseOutputStream;
 import org.jenkinsci.Symbol;
@@ -1104,7 +1104,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
     }
 
     // TODO refactor and extract.
-    private class ServerHostKeyVerifierImpl implements ServerHostKeyVerifier {
+    class ServerHostKeyVerifierImpl implements ServerHostKeyVerifier {
 
         private final SlaveComputer computer;
         private final TaskListener listener;
@@ -1114,12 +1114,8 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
             this.listener = listener;
         }
 
-        public boolean verifyServerHostKey(
-                String hostname, int port, String serverHostKeyAlgorithm, byte[] serverHostKey) throws Exception {
-
-            final HostKey key = new HostKey(serverHostKeyAlgorithm, serverHostKey);
-
-            return getSshHostKeyVerificationStrategyDefaulted().verify(computer, key, listener);
+        public ServerKeyVerifier getServerKeyVerifier() {
+            return getSshHostKeyVerificationStrategy().getServerKeyVerifier();
         }
     }
 }

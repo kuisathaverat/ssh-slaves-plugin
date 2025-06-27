@@ -26,6 +26,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 import org.testcontainers.DockerClientFactory;
@@ -40,6 +42,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Timeout(value = 10, unit = TimeUnit.MINUTES)
 @WithJenkins
 @Testcontainers(disabledWithoutDocker = true)
+@DisabledOnOs(OS.WINDOWS)
 public abstract class AgentConnectionBaseTest {
 
     public static final String USER = "jenkins";
