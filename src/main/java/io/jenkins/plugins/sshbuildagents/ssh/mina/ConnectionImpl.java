@@ -27,6 +27,7 @@ import com.cloudbees.jenkins.plugins.sshcredentials.SSHAuthenticator;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
+import hudson.Util;
 import hudson.model.TaskListener;
 import hudson.util.Secret;
 import io.jenkins.plugins.sshbuildagents.ssh.Connection;
@@ -34,6 +35,7 @@ import io.jenkins.plugins.sshbuildagents.ssh.ServerHostKeyVerifier;
 import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -44,11 +46,14 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.sshd.client.ClientBuilder;
 import org.apache.sshd.client.SshClient;
+import org.apache.sshd.client.channel.ChannelExec;
+import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.future.ConnectFuture;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.core.CoreModuleProperties;
@@ -206,9 +211,32 @@ public class ConnectionImpl implements Connection {
             throws IOException {
         SftpClientFactory sftpClientFactory = SftpClientFactory.instance();
         try (SftpClient sftpClient = sftpClientFactory.createSftpClient(connect())) {
-            SftpClient.Attributes attributes = sftpClient.stat(remotePath);
-            // TODO some checks
-            sftpClient.put(new ByteArrayInputStream(bytes), remotePath);
+            // create directories and we check if the file already exist remotely
+            String cmd = "mkdir -p " + getWorkingDirectory()
+                + " 2>/dev/null ; md5sum " + remotePath
+                + " || md5 " + remotePath;
+            ChannelExec channelExec = connect().createExecChannel(cmd);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            channelExec.setOut(baos);
+            channelExec.setErr(baos);
+            channelExec.open().await();
+            channelExec.waitFor(Arrays.asList(ClientChannelEvent.EOF, ClientChannelEvent.EXIT_STATUS), IDLE_SESSION_TIMEOUT);
+            channelExec.close(false);
+            String output = baos.toString(StandardCharsets.UTF_8);
+            String digest = Util.getDigestOf(new ByteArrayInputStream(bytes));
+            if(!output.equals(digest)){
+                sftpClient.put(new ByteArrayInputStream(bytes), remotePath);
+            }
+        }
+    }
+
+    private SftpClient.Attributes checkRemotePath(String remotePath, SftpClient sftpClient) throws IOException {
+        try{
+            return sftpClient.stat(remotePath);
+        } catch (IOException e) {
+            // sort of remote path not there...
+            sftpClient.mkdir(remotePath);
+            return sftpClient.stat(remotePath);
         }
     }
 

@@ -332,7 +332,6 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
                 return;
             }
             connection = new ConnectionImpl(host, port);
-
             final String workingDirectory = getWorkingDirectory(computer);
             if (workingDirectory == null || workingDirectory.isEmpty()) {
                 listener.getLogger().println(Messages.SSHLauncher_WorkingDirectoryNotSet());
@@ -1138,7 +1137,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
         }
 
         public ServerKeyVerifier getServerKeyVerifier() {
-            return getSshHostKeyVerificationStrategy().getServerKeyVerifier();
+            return getSshHostKeyVerificationStrategy() != null ? getSshHostKeyVerificationStrategy().getServerKeyVerifier() : null;
         }
     }
 }
