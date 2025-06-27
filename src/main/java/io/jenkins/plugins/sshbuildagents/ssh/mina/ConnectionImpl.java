@@ -32,6 +32,8 @@ import hudson.util.Secret;
 import io.jenkins.plugins.sshbuildagents.ssh.Connection;
 import io.jenkins.plugins.sshbuildagents.ssh.ServerHostKeyVerifier;
 import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
+
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -51,6 +53,8 @@ import org.apache.sshd.client.future.ConnectFuture;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.core.CoreModuleProperties;
 import org.apache.sshd.scp.client.DefaultScpClient;
+import org.apache.sshd.sftp.client.SftpClient;
+import org.apache.sshd.sftp.client.SftpClientFactory;
 
 /**
  * Implements {@link Connection} using the Apache Mina SSHD library
@@ -200,12 +204,11 @@ public class ConnectionImpl implements Connection {
     @Override
     public void copyFile(String remotePath, byte[] bytes, boolean overwrite, boolean checkSameContent)
             throws IOException {
-        try (ClientSession session = connect()) {
-            DefaultScpClient scp = new DefaultScpClient(session);
-            List<PosixFilePermission> permissions = new ArrayList<>();
-            permissions.add(PosixFilePermission.GROUP_READ);
-            permissions.add(PosixFilePermission.OWNER_WRITE);
-            scp.upload(bytes, remotePath, permissions, null);
+        SftpClientFactory sftpClientFactory = SftpClientFactory.instance();
+        try (SftpClient sftpClient = sftpClientFactory.createSftpClient(connect())) {
+            SftpClient.Attributes attributes = sftpClient.stat(remotePath);
+            // TODO some checks
+            sftpClient.put(new ByteArrayInputStream(bytes), remotePath);
         }
     }
 

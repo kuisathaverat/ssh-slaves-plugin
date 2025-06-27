@@ -37,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.AbortException;
 import hudson.EnvVars;
 import hudson.Extension;
+import hudson.Functions;
 import hudson.Util;
 import hudson.model.Computer;
 import hudson.model.Descriptor;
@@ -60,7 +61,6 @@ import hudson.util.ListBoxModel;
 import io.jenkins.plugins.sshbuildagents.Messages;
 import io.jenkins.plugins.sshbuildagents.ssh.Connection;
 import io.jenkins.plugins.sshbuildagents.ssh.ServerHostKeyVerifier;
-import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -72,7 +72,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import jenkins.model.Jenkins;
+import org.apache.commons.io.output.CloseShieldOutputStream;
 import org.apache.commons.lang.StringUtils;
+import org.apache.sshd.client.channel.ChannelExec;
 import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.util.io.output.NoCloseOutputStream;
@@ -180,7 +182,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
 
     /** Shell channel to execute the remoting process. */
     @CheckForNull
-    private transient ShellChannel shellChannel;
+    private transient ChannelExec process;
 
     /**
      * Constructor SSHLauncher creates a new SSHLauncher instance.
@@ -482,11 +484,31 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
         cmd = getPrefixStartAgentCmd() + cmd + getSuffixStartAgentCmd();
 
         listener.getLogger().println(Messages.SSHLauncher_StartingAgentProcess(getTimestamp(), cmd));
-        shellChannel = connection.shellChannel();
-        shellChannel.execCommand(cmd);
+        ChannelExec process = connection.connect().createExecChannel(cmd);
         try {
+            // TODO timeout?
+            process.open().await();
+            // stderr may have interesting errors so get those
+            process.setErr(CloseShieldOutputStream.wrap(listener.getLogger()));
             computer.setChannel(
-                    shellChannel.getInvertedStdout(), shellChannel.getInvertedStdin(), listener.getLogger(), null);
+                    process.getInvertedOut(), process.getInvertedIn(), listener.getLogger(), new hudson.remoting.Channel.Listener() {
+                        @Override
+                        public void onClosed(hudson.remoting.Channel channel, IOException cause) {
+                            if (cause != null) {
+                                Functions.printStackTrace(cause, listener.error("Slave close" + new Date()));
+                            }
+                            try {
+                                process.close(true);
+                            } catch (Throwable t) {
+                                Functions.printStackTrace(t, listener.error(Messages.SSHLauncher_ErrorWhileClosingConnection()));
+                            }
+                            try {
+                                close();
+                            } catch (Throwable t) {
+                                Functions.printStackTrace(t, listener.error(Messages.SSHLauncher_ErrorWhileClosingConnection()));
+                            }
+                        }
+                    });
         } catch (InterruptedException e) {
             throw new IOException(Messages.SSHLauncher_AbortedDuringConnectionOpen(), e);
         } catch (IOException e) {
@@ -616,29 +638,30 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
             // Nothing to do here, the connection is not established
             return;
         } else {
-            try {
-                if (shellChannel != null) {
-                    if (shellChannel.getLastError() != null) {
-                        listener.getLogger()
-                                .println("\tException: "
-                                        + shellChannel.getLastError().getMessage());
-                    }
-                    if (StringUtils.isNotBlank(shellChannel.getLastHint())) {
-                        listener.getLogger().println("\tHint: " + shellChannel.getLastHint());
-                    }
-                }
-                close();
-            } catch (Exception e) {
-                listener.getLogger().println("Error after disconnect agent: " + e.getMessage());
-            }
+            // not sure we need this here as we have the Channel.Listener implemented
+//            try {
+//                if (process != null) {
+//                    if (process.getLastError() != null) {
+//                        listener.getLogger()
+//                                .println("\tException: "
+//                                        + shellChannel.getLastError().getMessage());
+//                    }
+//                    if (StringUtils.isNotBlank(shellChannel.getLastHint())) {
+//                        listener.getLogger().println("\tHint: " + shellChannel.getLastHint());
+//                    }
+//                }
+//                close();
+//            } catch (Exception e) {
+//                listener.getLogger().println("Error after disconnect agent: " + e.getMessage());
+//            }
         }
     }
 
     /** Closes the SSH connection and any associated channels. */
     private void close() {
         try {
-            if (shellChannel != null) {
-                shellChannel.close();
+            if (process != null) {
+                process.close();
             }
             if (connection != null) {
                 connection.close();
@@ -648,7 +671,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
             LOGGER.fine("Error closing connection: " + e.getMessage());
         }
         connection = null;
-        shellChannel = null;
+        process = null;
     }
 
     /**
