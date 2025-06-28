@@ -35,6 +35,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import org.apache.commons.lang.StringUtils;
+import org.apache.sshd.client.keyverifier.DefaultKnownHostsServerKeyVerifier;
+import org.apache.sshd.client.keyverifier.RejectAllServerKeyVerifier;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -118,6 +121,12 @@ public class KnownHostsFileKeyVerificationStrategy extends SshHostKeyVerificatio
     @Restricted(NoExternalUse.class)
     public File getKnownHostsFile() {
         return KNOWN_HOSTS_FILE;
+    }
+
+    @Override
+    public ServerKeyVerifier getServerKeyVerifier() {
+        // Accept all host that are in ~/.ssh/known_hosts only, reject everything else.
+        return new DefaultKnownHostsServerKeyVerifier(RejectAllServerKeyVerifier.INSTANCE);
     }
 
     @Extension

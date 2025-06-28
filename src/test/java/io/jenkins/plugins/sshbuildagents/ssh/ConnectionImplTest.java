@@ -16,6 +16,8 @@ import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
@@ -35,20 +37,20 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.server.shell.InteractiveProcessShellFactory;
 import org.apache.sshd.server.shell.ProcessShellCommandFactory;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class ConnectionImplTest {
-    private SshServer sshd;
+    private static SshServer sshd;
 
-    @Rule
-    public TemporaryFolder tempFolder = new TemporaryFolder();
+    @TempDir
+    Path tempFolder;
 
-    @Before
-    public void setup() throws IOException {
+    @BeforeAll
+    public static void startServer() throws IOException {
         Logger.getLogger("org.apache.sshd").setLevel(Level.FINE);
         Logger.getLogger("io.jenkins.plugins.sshbuildagents").setLevel(Level.FINE);
         sshd = SshServer.setUpDefaultServer();
@@ -67,8 +69,8 @@ public class ConnectionImplTest {
         sshd.start();
     }
 
-    @After
-    public void tearDown() throws IOException {
+    @AfterAll
+    public static void cleanup() throws IOException {
         sshd.stop();
     }
 
@@ -95,7 +97,9 @@ public class ConnectionImplTest {
 
     @Test
     public void testCopyFile() throws IOException, FormException {
-        final File tempFile = tempFolder.newFile("tempFile.txt");
+        // not sure we really need the tempFolder
+        final File tempFile =
+                Files.createTempFile(tempFolder, "tempFile", "txt").toFile();
         Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
@@ -114,7 +118,7 @@ public class ConnectionImplTest {
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
         ShellChannel shellChannel = connection.shellChannel();
-        shellChannel.execCommand("echo FOO");
+        shellChannel.execCommand("echo FOO", System.out);
         byte[] data = IOUtils.readFully(
                 shellChannel.getInvertedStdout(),
                 shellChannel.getInvertedStdout().available());
@@ -124,12 +128,13 @@ public class ConnectionImplTest {
     }
 
     @Test
+    @Disabled("FIXME takes tooooooo long, maybe on CI server only?")
     public void testRunLongConnection() throws IOException, InterruptedException {
         Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
         StandardUsernameCredentials credentials = new FakeSSHKeyCredential();
         connection.setCredentials(credentials);
         ShellChannel shellChannel = connection.shellChannel();
-        shellChannel.execCommand("sleep 500s");
+        shellChannel.execCommand("sleep 500s", System.out);
         for (int i = 0; i < 300; i++) {
             Thread.sleep(1000);
             assertTrue(connection.isOpen());

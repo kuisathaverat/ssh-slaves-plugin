@@ -29,6 +29,8 @@ import hudson.model.TaskListener;
 import hudson.plugins.sshslaves.Messages;
 import hudson.plugins.sshslaves.SSHLauncher;
 import hudson.slaves.SlaveComputer;
+import org.apache.sshd.client.keyverifier.AcceptAllServerKeyVerifier;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
@@ -61,5 +63,10 @@ public class NonVerifyingKeyVerificationStrategy extends SshHostKeyVerificationS
         public String getDisplayName() {
             return Messages.NonVerifyingHostKeyVerifier_DescriptorDisplayName();
         }
+    }
+
+    @Override
+    public ServerKeyVerifier getServerKeyVerifier() {
+        return AcceptAllServerKeyVerifier.INSTANCE;
     }
 }

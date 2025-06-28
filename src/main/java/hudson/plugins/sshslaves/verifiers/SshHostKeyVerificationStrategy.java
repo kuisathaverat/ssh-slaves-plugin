@@ -31,6 +31,7 @@ import hudson.model.TaskListener;
 import hudson.slaves.SlaveComputer;
 import java.io.IOException;
 import jenkins.model.Jenkins;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 
 /**
  * A method for verifying the host key provided by the remote host during the
@@ -56,6 +57,8 @@ public abstract class SshHostKeyVerificationStrategy implements Describable<SshH
      * @since 1.12
      */
     public abstract boolean verify(SlaveComputer computer, HostKey hostKey, TaskListener listener) throws Exception;
+
+    public abstract ServerKeyVerifier getServerKeyVerifier();
 
     /**
      * Provides a list of preferred key algorithms for this strategy and computer.

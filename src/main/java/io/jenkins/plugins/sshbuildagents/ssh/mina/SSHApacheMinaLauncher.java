@@ -37,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.AbortException;
 import hudson.EnvVars;
 import hudson.Extension;
+import hudson.Functions;
 import hudson.Util;
 import hudson.model.Computer;
 import hudson.model.Descriptor;
@@ -45,7 +46,6 @@ import hudson.model.Node;
 import hudson.model.Slave;
 import hudson.model.TaskListener;
 import hudson.plugins.sshslaves.SSHConnector;
-import hudson.plugins.sshslaves.verifiers.HostKey;
 import hudson.plugins.sshslaves.verifiers.NonVerifyingKeyVerificationStrategy;
 import hudson.plugins.sshslaves.verifiers.SshHostKeyVerificationStrategy;
 import hudson.security.ACL;
@@ -61,7 +61,6 @@ import hudson.util.ListBoxModel;
 import io.jenkins.plugins.sshbuildagents.Messages;
 import io.jenkins.plugins.sshbuildagents.ssh.Connection;
 import io.jenkins.plugins.sshbuildagents.ssh.ServerHostKeyVerifier;
-import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -72,8 +71,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+
+import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
 import jenkins.model.Jenkins;
+import org.apache.commons.io.output.CloseShieldOutputStream;
 import org.apache.commons.lang.StringUtils;
+import org.apache.sshd.client.channel.ChannelExec;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.util.io.output.NoCloseOutputStream;
 import org.jenkinsci.Symbol;
@@ -330,7 +334,6 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
                 return;
             }
             connection = new ConnectionImpl(host, port);
-
             final String workingDirectory = getWorkingDirectory(computer);
             if (workingDirectory == null || workingDirectory.isEmpty()) {
                 listener.getLogger().println(Messages.SSHLauncher_WorkingDirectoryNotSet());
@@ -483,10 +486,27 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
 
         listener.getLogger().println(Messages.SSHLauncher_StartingAgentProcess(getTimestamp(), cmd));
         shellChannel = connection.shellChannel();
-        shellChannel.execCommand(cmd);
+        shellChannel.execCommand(cmd, listener.getLogger());
         try {
             computer.setChannel(
-                    shellChannel.getInvertedStdout(), shellChannel.getInvertedStdin(), listener.getLogger(), null);
+                shellChannel.getInvertedStdout(), shellChannel.getInvertedStdin(), listener.getLogger(), new hudson.remoting.Channel.Listener() {
+                        @Override
+                        public void onClosed(hudson.remoting.Channel channel, IOException cause) {
+                            if (cause != null) {
+                                Functions.printStackTrace(cause, listener.error("Slave close" + new Date()));
+                            }
+                            try {
+                                close();
+                            } catch (Throwable t) {
+                                Functions.printStackTrace(t, listener.error(Messages.SSHLauncher_ErrorWhileClosingConnection()));
+                            }
+                            try {
+                                close();
+                            } catch (Throwable t) {
+                                Functions.printStackTrace(t, listener.error(Messages.SSHLauncher_ErrorWhileClosingConnection()));
+                            }
+                        }
+                    });
         } catch (InterruptedException e) {
             throw new IOException(Messages.SSHLauncher_AbortedDuringConnectionOpen(), e);
         } catch (IOException e) {
@@ -616,12 +636,13 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
             // Nothing to do here, the connection is not established
             return;
         } else {
+            // not sure we need this here as we have the Channel.Listener implemented
             try {
                 if (shellChannel != null) {
                     if (shellChannel.getLastError() != null) {
                         listener.getLogger()
-                                .println("\tException: "
-                                        + shellChannel.getLastError().getMessage());
+                            .println("\tException: "
+                                + shellChannel.getLastError().getMessage());
                     }
                     if (StringUtils.isNotBlank(shellChannel.getLastHint())) {
                         listener.getLogger().println("\tHint: " + shellChannel.getLastHint());
@@ -640,7 +661,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
             if (shellChannel != null) {
                 shellChannel.close();
             }
-            if (connection != null) {
+            if (connection != null && connection.isOpen()) {
                 connection.close();
             }
         } catch (Exception e) {
@@ -1104,7 +1125,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
     }
 
     // TODO refactor and extract.
-    private class ServerHostKeyVerifierImpl implements ServerHostKeyVerifier {
+    class ServerHostKeyVerifierImpl implements ServerHostKeyVerifier {
 
         private final SlaveComputer computer;
         private final TaskListener listener;
@@ -1114,12 +1135,8 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
             this.listener = listener;
         }
 
-        public boolean verifyServerHostKey(
-                String hostname, int port, String serverHostKeyAlgorithm, byte[] serverHostKey) throws Exception {
-
-            final HostKey key = new HostKey(serverHostKeyAlgorithm, serverHostKey);
-
-            return getSshHostKeyVerificationStrategyDefaulted().verify(computer, key, listener);
+        public ServerKeyVerifier getServerKeyVerifier() {
+            return getSshHostKeyVerificationStrategy() != null ? getSshHostKeyVerificationStrategy().getServerKeyVerifier() : null;
         }
     }
 }
