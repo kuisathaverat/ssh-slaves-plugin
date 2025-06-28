@@ -26,6 +26,7 @@ package io.jenkins.plugins.sshbuildagents.ssh;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 
 /**
  * Interface to manage non-interactive sessions.
@@ -34,12 +35,13 @@ import java.io.OutputStream;
  */
 public interface ShellChannel extends AutoCloseable {
     /**
-     * Executed a command in a non-interactive session and exit, it does not wait for the result.
+     * Executed a command in a non-interactive session and exit, wait for verifying the result.
      *
      * @param cmd
+     * @param printStream to display error while executing the command line
      * @throws IOException
      */
-    void execCommand(String cmd) throws IOException;
+    void execCommand(String cmd, PrintStream printStream) throws IOException;
 
     /**
      * @return The standard output of the process launched in a InputStream for reading.

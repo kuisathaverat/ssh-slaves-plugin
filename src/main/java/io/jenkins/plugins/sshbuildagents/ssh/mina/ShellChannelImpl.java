@@ -29,8 +29,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.io.PrintStream;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.io.output.CloseShieldOutputStream;
 import org.apache.sshd.client.channel.ChannelSession;
 import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.session.ClientSession;
@@ -80,28 +83,25 @@ public class ShellChannelImpl implements ShellChannel {
         this.session = session;
     }
 
-    /**
-     * Executes a command in the shell.
-     *
-     * @param cmd Command to execute.
-     * @throws IOException in case of error. This method will block until the command finishes
-     *     executing.
-     */
+    /** {@inheritDoc} */
     @Override
-    public void execCommand(String cmd) throws IOException {
-        this.channel = session.createExecChannel(cmd + "\n");
+    public void execCommand(String cmd, PrintStream printStream) throws IOException {
+        this.channel = session.createExecChannel(cmd);
         this.lastHint = cmd;
         this.lastError = null;
         channel.setOut(out);
         channel.setIn(in);
         channel.open().verify(OPERATION_TIMEOUT, TimeUnit.MILLISECONDS);
+        //channel.open().await(OPERATION_TIMEOUT, TimeUnit.MILLISECONDS);
+        // stderr may have interesting errors so get those
+        channel.setErr(CloseShieldOutputStream.wrap(printStream));
         channel.waitFor(Collections.singleton(ClientChannelEvent.CLOSED), OPERATION_TIMEOUT);
         if (channel.getExitStatus() != null && channel.getExitStatus() != 0) {
             this.lastError = new IOException("Command failed with exit status " + channel.getExitStatus());
         }
     }
 
-    /** Returns the standard output stream of the channel. */
+    /** {@inheritDoc} */
     @Override
     public InputStream getInvertedStdout() {
         return invertedOut;

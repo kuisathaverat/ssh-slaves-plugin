@@ -118,7 +118,7 @@ public class ConnectionImplTest {
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
         ShellChannel shellChannel = connection.shellChannel();
-        shellChannel.execCommand("echo FOO");
+        shellChannel.execCommand("echo FOO", System.out);
         byte[] data = IOUtils.readFully(
                 shellChannel.getInvertedStdout(),
                 shellChannel.getInvertedStdout().available());
@@ -134,7 +134,7 @@ public class ConnectionImplTest {
         StandardUsernameCredentials credentials = new FakeSSHKeyCredential();
         connection.setCredentials(credentials);
         ShellChannel shellChannel = connection.shellChannel();
-        shellChannel.execCommand("sleep 500s");
+        shellChannel.execCommand("sleep 500s", System.out);
         for (int i = 0; i < 300; i++) {
             Thread.sleep(1000);
             assertTrue(connection.isOpen());

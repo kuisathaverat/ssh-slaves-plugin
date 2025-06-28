@@ -157,7 +157,7 @@ public class ClientRSA512ConnectionTest {
             StandardUsernameCredentials credentials = new FakeSSHKeyCredential();
             connection.setCredentials(credentials);
             try (ShellChannel shellChannel = connection.shellChannel()) {
-                shellChannel.execCommand("sleep 300s");
+                shellChannel.execCommand("sleep 300s", System.out);
                 for (int i = 0; i < 300; i++) {
                     Thread.sleep(1000);
                     assertTrue(connection.isOpen());
