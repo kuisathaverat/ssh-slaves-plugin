@@ -74,9 +74,7 @@ import java.util.logging.Logger;
 
 import io.jenkins.plugins.sshbuildagents.ssh.ShellChannel;
 import jenkins.model.Jenkins;
-import org.apache.commons.io.output.CloseShieldOutputStream;
 import org.apache.commons.lang.StringUtils;
-import org.apache.sshd.client.channel.ChannelExec;
 import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.util.io.output.NoCloseOutputStream;
@@ -333,7 +331,7 @@ public class SSHApacheMinaLauncher extends ComputerLauncher {
                 listener.getLogger().println(Messages.SSHLauncher_alreadyConnected());
                 return;
             }
-            connection = new ConnectionImpl(host, port);
+            connection = new ConnectionImpl(host, port, SshClientProvider.getSshClient());
             final String workingDirectory = getWorkingDirectory(computer);
             if (workingDirectory == null || workingDirectory.isEmpty()) {
                 listener.getLogger().println(Messages.SSHLauncher_WorkingDirectoryNotSet());

@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import io.jenkins.plugins.sshbuildagents.ssh.mina.SshClientProvider;
 import org.apache.commons.lang.SystemUtils;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.channel.ChannelExec;
@@ -153,7 +155,7 @@ public class ClientRSA512ConnectionTest {
         assertTrue(agentContainer.isRunning());
         int port = agentContainer.getMappedPort(SSH_PORT);
         String host = agentContainer.getHost();
-        try (Connection connection = new ConnectionImpl(host, port)) {
+        try (Connection connection = new ConnectionImpl(host, port, SshClientProvider.getSshClient())) {
             StandardUsernameCredentials credentials = new FakeSSHKeyCredential();
             connection.setCredentials(credentials);
             try (ShellChannel shellChannel = connection.shellChannel()) {

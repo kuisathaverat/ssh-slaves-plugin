@@ -41,23 +41,17 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.attribute.PosixFilePermission;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.apache.sshd.client.ClientBuilder;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.channel.ChannelExec;
 import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.future.ConnectFuture;
+import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
-import org.apache.sshd.core.CoreModuleProperties;
-import org.apache.sshd.scp.client.DefaultScpClient;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
 
@@ -129,9 +123,10 @@ public class ConnectionImpl implements Connection {
      * @param host The hostname or IP address of the SSH server.
      * @param port The port number of the SSH server.
      */
-    public ConnectionImpl(String host, int port) {
+    public ConnectionImpl(String host, int port, SshClient sshClient) {
         this.host = host;
         this.port = port;
+        this.client = sshClient;
     }
 
     /** {@inheritDoc} */
@@ -198,10 +193,6 @@ public class ConnectionImpl implements Connection {
                 // NOOP
             }
         }
-        if (client != null) {
-            client.stop();
-        }
-        client = null;
         session = null;
     }
 
@@ -253,7 +244,6 @@ public class ConnectionImpl implements Connection {
     /** {@inheritDoc} */
     @Override
     public ClientSession connect() throws IOException {
-        initClient();
         if (!isSession()) {
             for (int i = 0; i <= maxNumRetries; i++) {
                 try {
@@ -297,6 +287,10 @@ public class ConnectionImpl implements Connection {
         ConnectFuture connectionFuture = client.connect(this.credentials.getUsername(), this.host, this.port);
         connectionFuture.verify(this.timeoutMillis);
         session = connectionFuture.getSession();
+        if (getHostKeyVerifier() instanceof SSHApacheMinaLauncher.ServerHostKeyVerifierImpl hostKeyVerifier) {
+            session.getMetadataMap().put(ServerKeyVerifier.class, hostKeyVerifier.getServerKeyVerifier());
+        }
+
         try {
             if (!SSHAuthenticator.newInstance(session, credentials).authenticate(TaskListener.NULL)) {
                 session.close(true);
@@ -309,26 +303,6 @@ public class ConnectionImpl implements Connection {
         //        AuthFuture auth = session.auth();
         //        auth.verify(this.timeoutMillis);
         return session;
-    }
-
-    /** Initialize the SSH client. It reuses the client if it exists. */
-    private void initClient() {
-        if (client == null) {
-            ClientBuilder clientBuilder = ClientBuilder.builder();
-            if (getHostKeyVerifier() instanceof SSHApacheMinaLauncher.ServerHostKeyVerifierImpl hostKeyVerifier) {
-                clientBuilder.serverKeyVerifier(hostKeyVerifier.getServerKeyVerifier());
-            }
-            client = clientBuilder.build();
-            CoreModuleProperties.WINDOW_SIZE.set(client, WINDOW_SIZE);
-            CoreModuleProperties.TCP_NODELAY.set(client, tcpNoDelay);
-            CoreModuleProperties.HEARTBEAT_REQUEST.set(client, "keepalive@jenkins.io");
-            CoreModuleProperties.HEARTBEAT_INTERVAL.set(client, Duration.ofSeconds(HEARTBEAT_INTERVAL));
-            CoreModuleProperties.HEARTBEAT_NO_REPLY_MAX.set(client, HEARTBEAT_MAX_RETRY);
-            CoreModuleProperties.IDLE_TIMEOUT.set(client, Duration.ofMinutes(IDLE_SESSION_TIMEOUT));
-        }
-        if (!client.isStarted()) {
-            client.start();
-        }
     }
 
     /**
@@ -433,7 +407,7 @@ public class ConnectionImpl implements Connection {
     /** {@inheritDoc} */
     @Override
     public boolean isOpen() {
-        return isSession() && client != null && client.isOpen();
+        return isSession();
     }
 
     /**

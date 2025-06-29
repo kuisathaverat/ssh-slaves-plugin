@@ -91,8 +91,8 @@ public class ShellChannelImpl implements ShellChannel {
         this.lastError = null;
         channel.setOut(out);
         channel.setIn(in);
-        channel.open().verify(OPERATION_TIMEOUT, TimeUnit.MILLISECONDS);
-        //channel.open().await(OPERATION_TIMEOUT, TimeUnit.MILLISECONDS);
+        //channel.open().verify(OPERATION_TIMEOUT, TimeUnit.MILLISECONDS);
+        channel.open().await(OPERATION_TIMEOUT, TimeUnit.MILLISECONDS);
         // stderr may have interesting errors so get those
         channel.setErr(CloseShieldOutputStream.wrap(printStream));
         channel.waitFor(Collections.singleton(ClientChannelEvent.CLOSED), OPERATION_TIMEOUT);

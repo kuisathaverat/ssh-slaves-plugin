@@ -23,9 +23,12 @@ import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import io.jenkins.plugins.sshbuildagents.ssh.mina.SshClientProvider;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.channel.ChannelShell;
 import org.apache.sshd.client.channel.ClientChannel;
 import org.apache.sshd.client.channel.ClientChannelEvent;
@@ -48,6 +51,8 @@ public class ConnectionImplTest {
 
     @TempDir
     Path tempFolder;
+
+    public static SshClient sshClient = SshClientProvider.getSshClient();
 
     @BeforeAll
     public static void startServer() throws IOException {
@@ -72,11 +77,12 @@ public class ConnectionImplTest {
     @AfterAll
     public static void cleanup() throws IOException {
         sshd.stop();
+        sshClient.stop();
     }
 
     @Test
     public void testRunCommandUserPassword() throws IOException, FormException {
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
@@ -87,7 +93,7 @@ public class ConnectionImplTest {
 
     @Test
     public void testRunCommandSSHKey() throws IOException {
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new FakeSSHKeyCredential();
         connection.setCredentials(credentials);
         int ret = connection.execCommand("echo FOO");
@@ -100,7 +106,7 @@ public class ConnectionImplTest {
         // not sure we really need the tempFolder
         final File tempFile =
                 Files.createTempFile(tempFolder, "tempFile", "txt").toFile();
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
@@ -113,7 +119,7 @@ public class ConnectionImplTest {
     @Test
     public void testShellChannel() throws IOException, FormException {
         Logger logger = Logger.getLogger("io.jenkins.plugins.sshbuildagents.ssh.agents");
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
@@ -130,7 +136,7 @@ public class ConnectionImplTest {
     @Test
     @Disabled("FIXME takes tooooooo long, maybe on CI server only?")
     public void testRunLongConnection() throws IOException, InterruptedException {
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new FakeSSHKeyCredential();
         connection.setCredentials(credentials);
         ShellChannel shellChannel = connection.shellChannel();
@@ -145,7 +151,7 @@ public class ConnectionImplTest {
     @Test
     public void testShellChannel2() throws IOException, FormException {
         Logger logger = Logger.getLogger("io.jenkins.plugins.sshbuildagents.ssh.agents");
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
@@ -169,7 +175,7 @@ public class ConnectionImplTest {
     @Test
     public void testClient() throws Exception {
         Logger logger = Logger.getLogger("io.jenkins.plugins.sshbuildagents.ssh.agents");
-        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort());
+        Connection connection = new ConnectionImpl(sshd.getHost(), sshd.getPort(), sshClient);
         StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(
                 CredentialsScope.SYSTEM, "id", "", AgentConnectionBaseTest.USER, AgentConnectionBaseTest.PASSWORD);
         connection.setCredentials(credentials);
