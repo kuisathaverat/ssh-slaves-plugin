@@ -30,10 +30,14 @@ import hudson.init.Terminator;
 import org.apache.sshd.client.ClientBuilder;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.keyverifier.DelegatingServerKeyVerifier;
+import org.apache.sshd.common.channel.RequestHandler;
 import org.apache.sshd.common.global.KeepAliveHandler;
+import org.apache.sshd.common.session.ConnectionService;
 import org.apache.sshd.core.CoreModuleProperties;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import static io.jenkins.plugins.sshbuildagents.ssh.mina.ConnectionImpl.HEARTBEAT_INTERVAL;
 import static io.jenkins.plugins.sshbuildagents.ssh.mina.ConnectionImpl.HEARTBEAT_MAX_RETRY;
@@ -47,11 +51,16 @@ public class SshClientProvider {
         ClientBuilder clientBuilder = ClientBuilder.builder();
         clientBuilder.serverKeyVerifier(new DelegatingServerKeyVerifier());
         sshClient = clientBuilder.build();
+        List<RequestHandler<ConnectionService>> globalRequestHandlers = sshClient.getGlobalRequestHandlers();
+        // npe check and recreate if un modifiable collection
+        globalRequestHandlers = (globalRequestHandlers == null) ? new ArrayList<>() : new ArrayList<>(globalRequestHandlers);
+        if(globalRequestHandlers.stream().noneMatch(csrh -> csrh instanceof KeepAliveHandler))
+        {
+            globalRequestHandlers.add(new KeepAliveHandler());
+            sshClient.setGlobalRequestHandlers(globalRequestHandlers);
+        }
         CoreModuleProperties.WINDOW_SIZE.set(sshClient, WINDOW_SIZE);
         CoreModuleProperties.TCP_NODELAY.set(sshClient, true);
-        CoreModuleProperties.HEARTBEAT_REQUEST.set(sshClient, "keepalive@jenkins.io");
-        CoreModuleProperties.HEARTBEAT_INTERVAL.set(sshClient, Duration.ofSeconds(HEARTBEAT_INTERVAL));
-        CoreModuleProperties.HEARTBEAT_NO_REPLY_MAX.set(sshClient, HEARTBEAT_MAX_RETRY);
         CoreModuleProperties.IDLE_TIMEOUT.set(sshClient, Duration.ofMinutes(IDLE_SESSION_TIMEOUT));
         sshClient.start();
     }
